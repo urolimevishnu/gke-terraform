@@ -1,0 +1,61 @@
+steps:
+- id: 'checkov'
+  name: 'bridgecrew/checkov:latest'
+  entrypoint: 'sh'
+  args:
+  - '-c'
+  - |
+      echo "branch $BRANCH_NAME"
+      if [ ! -z "$BRANCH_NAME" -a -d "my-gke-tf/terraform/environments/$BRANCH_NAME/" ]; then
+        cd my-gke-tf/terraform/environments/$BRANCH_NAME
+        echo "run Checkov"
+        checkov -d .
+        cd ../../
+      else
+        for dir in my-gke-tf/terraform/environments/*/
+        do
+          cd ${dir}
+          env=${dir%*/}
+          env=${env#*/}
+          echo ""
+          echo "*************** CHECKOV ******************"
+          echo "******* At environment: ${env} ********"
+          echo "*****************************************"
+          checkov -d .
+          cd ../../
+        done
+      fi
+
+- id: 'tf plan'
+  name: 'hashicorp/terraform:latest'
+  entrypoint: 'sh'
+  args:
+  - '-c'
+  - |
+      echo "branch $BRANCH_NAME"
+      if [ ! -z "$BRANCH_NAME" -a -d "my-gke-tf/terraform/environments/$BRANCH_NAME/" ]; then
+        cd my-gke-tf/terraform/environments/$BRANCH_NAME
+        echo "run init"
+        terraform init
+        echo "run validate"
+        terraform validate
+        echo "run plan"
+        terraform plan -out terraform.plan
+        terraform apply -auto-approve terraform.plan
+      else
+        for dir in my-gke-tf/terraform/environments/*/
+        do
+          cd ${dir}
+          env=${dir%*/}
+          env=${env#*/}
+          echo ""
+          echo "*************** TERRAFORM PLAN ******************"
+          echo "******* At environment: ${env} ********"
+          echo "*************************************************"
+          terraform init
+          terraform validate
+          terraform plan || exit 1
+          cd ../../
+        done
+      fi
+
